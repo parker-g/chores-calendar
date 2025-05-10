@@ -85,5 +85,5 @@ func main() {
 	router := gin.Default()
 	router.GET("/week", getWeek)
 
-	router.Run("localhost:8008")
+	router.Run("0.0.0.0:8008")
 }
