@@ -78,6 +78,7 @@ func calculateWeek() Week {
 
 // handler for getting the current week of data
 func getWeek(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", c.Request.Header["Origin"][0])
 	c.IndentedJSON(http.StatusOK, calculateWeek())
 }
 
