@@ -1,4 +1,4 @@
-const BASE_API_URL = "http://chores:8008"
+const BASE_API_URL = "http://localhost:8008"
 
 fetch(BASE_API_URL + "/week")
     .then( response => {
@@ -8,8 +8,9 @@ fetch(BASE_API_URL + "/week")
         return response.json();
     })
     .then( jsonData => {
-        const weekNum = jsonData['week_num'];
-        const choresData = jsonData['days'];
+        const data = jsonData['data'];
+        const weekNum = data['week_num'];
+        const choresData = data['days'];
         displayWeekNum(weekNum);
         displayChores(choresData);
     })

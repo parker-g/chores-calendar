@@ -27,10 +27,10 @@ div#choresList {
         flex-basis: 150px;
         padding: 20px;
         margin: 10px;
-        border-width: 3px;
-        border-style: solid;
+        /* border-width: 3px; */
+        /* border-style: solid; */
         border-radius: 10px;
-        border-color: var(--day-container-border-color);
+        /* border-color: var(--day-container-border-color); */
         background-color: var(--day-container-background);
         transition-duration: 300ms;
         transition-property: background-color color;
