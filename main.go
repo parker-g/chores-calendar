@@ -22,8 +22,8 @@ type ChoresLineup struct {
 }
 
 type Week struct {
-	Week int    `json:"week"`
-	Days [7]Day `json:"days"`
+	WeekNum int    `json:"week_num"`
+	Days    [7]Day `json:"days"`
 }
 
 // I can calculate weekdays / lineups dynamically. I think perhaps I will just need
@@ -71,8 +71,8 @@ func calculateWeek() Week {
 	days := calculateDays(calcWeek)
 	return Week{
 		// display Week as a 1-4 value instead of 0-3
-		Week: calcWeek + 1,
-		Days: days,
+		WeekNum: calcWeek + 1,
+		Days:    days,
 	}
 }
 
