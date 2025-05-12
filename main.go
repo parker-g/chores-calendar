@@ -46,6 +46,11 @@ type Response[T any] struct {
 	// Status    uint8  `json:"status"`
 }
 
+// Structure of incoming POST requests to the 'week/:datetime' endpoint
+type WeekRequest struct {
+	Datetime time.Time `json:"datetime" time_format:"2006-01-02T15:04:05Z" time_utc:"1"`
+}
+
 const weekOffset = 1
 
 // week 1 day 1 starts with evie
@@ -58,6 +63,27 @@ var choreCandidates = []Person{
 	{Name: "Josie"},
 	{Name: "Garrett"},
 	{Name: "Parker"},
+}
+
+// Returns the week index of the given Time (1-52). Weeks start on SUNDAYS,
+// as opposed to ISOWeeks starting on Mondays.
+func NonISOWeek(t time.Time) (year int, week int) {
+	year = t.Year()
+	// Find first day of the year
+	startOfYear := time.Date(year, time.January, 1, 0, 0, 0, 0, t.Location())
+
+	// Find the first Sunday of the year
+	offset := (7 - int(startOfYear.Weekday())) % 7
+	firstSunday := startOfYear.AddDate(0, 0, offset)
+	if t.Before(firstSunday) {
+		// Belongs to the last week of the previous year
+		return NonISOWeek(time.Date(year-1, time.December, 31, 0, 0, 0, 0, t.Location()))
+	}
+	// Duration since first Sunday
+	daysSince := int(t.Sub(firstSunday).Hours() / 24)
+	week = (daysSince / 7) + 1 // +1 to make the first Sunday = week 1
+
+	return
 }
 
 func calculateDays(weekNum int) [7]Day {
@@ -79,34 +105,54 @@ func calculateDays(weekNum int) [7]Day {
 	return calcDays
 }
 
-func calculateWeek() Response[Week] {
-	timeSeconds := time.Now()
-	_, week := timeSeconds.ISOWeek()
+func calculateWeek(aTime *time.Time) Response[Week] {
+	_, week := NonISOWeek(*aTime)
 	calcWeek := (week + weekOffset) % 4
 	days := calculateDays(calcWeek)
 	nowTime := time.Now().UTC()
 	return Response[Week]{
 		Data: Week{
-			WeekNum:  uint8(calcWeek) + 1,
-			Days:     days,
-			TodayIdx: uint8(nowTime.Weekday()),
+			WeekNum: uint8(calcWeek) + 1,
+			Days:    days,
+			//use indexes 1-7 instead of 0-6
+			TodayIdx: uint8(aTime.Weekday() + 1),
 		},
 		TimeStamp: nowTime.String(),
 	}
 }
 
-// handler for getting the current week of data
-func getWeek(c *gin.Context) {
+// Adds 'access-control-allow-origin' header to response
+// if client sends an Origin header
+func handleOriginHeader(c *gin.Context) {
 	originHeaderLen := len(c.Request.Header["Origin"])
 	if originHeaderLen > 0 {
 		c.Header("Access-Control-Allow-Origin", c.Request.Header["Origin"][0])
 	}
-	c.IndentedJSON(http.StatusOK, calculateWeek())
+}
+
+// handler for getting the current week of data
+func getCurrentWeek(c *gin.Context) {
+	handleOriginHeader(c)
+	now := time.Now()
+	c.IndentedJSON(http.StatusOK, calculateWeek(&now))
+}
+
+// Expects a 'datetime' JSON property in RFC3339 format,
+// i.e. `datetime: "2006-01-02T15:04:05Z"`
+func getWeek(c *gin.Context) {
+	handleOriginHeader(c)
+	var req WeekRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, calculateWeek(&req.Datetime))
 }
 
 func main() {
 	router := gin.Default()
-	router.GET("/week", getWeek)
+	router.GET("/week", getCurrentWeek)
+	router.POST("/week", getWeek)
 
 	router.Run("0.0.0.0:8008")
 }
