@@ -1,3 +1,4 @@
 .vscode
 *.exe
 chores-calendar
+deploy-nginx.sh
