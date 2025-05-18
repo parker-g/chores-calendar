@@ -1,4 +1,13 @@
-const BASE_API_URL = "/api"
+const BASE_API_URL = "http://localhost:8008"
+
+// thanks Stackoverflow <3
+Date.prototype.GetFirstDayOfWeek = function() {
+    return (new Date(this.setDate(this.getDate() - this.getDay())));
+}
+
+Date.prototype.GetLastDayOfWeek = function() {
+    return (new Date(this.setDate(this.getDate() - this.getDay() +6)));
+}
 
 fetch(BASE_API_URL + "/week")
     .then( response => {
@@ -12,8 +21,29 @@ fetch(BASE_API_URL + "/week")
         const weekNum = data['week_num'];
         const choresData = data['days'];
         displayWeekNum(weekNum);
+        displayWeekSubheader();
         displayChores(choresData);
     })
+
+function displayWeekSubheader() {
+    const targetContainer = document.getElementById("week-subheader");
+    targetContainer.innerHTML = '';
+    
+    const curr = new Date(); // right now
+    const lastDay = curr.GetLastDayOfWeek().toUTCString()
+        .split(" ")
+        .slice(0, 3)
+        .join(" ");
+    console.log(lastDay);
+    const firstDay = curr.GetFirstDayOfWeek().toUTCString()
+        .split(" ")
+        .slice(0, 3)
+        .join(" ");
+
+    const realWeek = document.createElement("h2");
+    realWeek.textContent = `${firstDay} - ${lastDay}`; 
+    targetContainer.appendChild(realWeek);
+}
 
 function displayWeekNum(weekNum) {
     const targetContainer = document.getElementById("week");

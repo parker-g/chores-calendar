@@ -15,9 +15,12 @@ body {
     height: 100%;
     max-width: 100vw;
 }
-div#week {
-  display: flex;
-  justify-content: center;
+div#week, div#week-subheader {
+    display: flex;
+    justify-content: center;
+}
+div#week-subheader > h2{
+    margin-top: 0;
 }
 div#choresList {
     display: flex;
