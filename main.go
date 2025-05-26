@@ -51,7 +51,7 @@ type WeekRequest struct {
 	Datetime time.Time `json:"datetime" time_format:"2006-01-02T15:04:05Z" time_utc:"1"`
 }
 
-const weekOffset = 1
+const weekOffset = 0
 
 // week 1 day 1 starts with evie
 // week 2 day 1 Josie

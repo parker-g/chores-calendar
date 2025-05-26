@@ -1,4 +1,4 @@
-const BASE_API_URL = "/api"
+const BASE_API_URL = "http://localhost:8008"
 
 // thanks Stackoverflow <3
 Date.prototype.GetFirstDayOfWeek = function() {
@@ -83,20 +83,32 @@ function displayChores(choresData, todayIdx) {
     }
 }
 
+
+/** Remove the 'chores' from the given day container.
+ * i.e. remove "Kitchen: Josie\nKitty Box: Garrett\n"
+ */
+function clearDayChores(dayContainer) {
+    const dayChoresHeaders = dayContainer.querySelectorAll("h3")
+    console.log("dayChoresHeaders: " + dayChoresHeaders);
+    dayChoresHeaders.forEach(( header ) => {
+        dayContainer.removeChild(header);
+    })
+}
+
 function handleClickDay(dayContainer, choreDay, parentContainer) {
     // check if div of chores is already presented - if so,
     // hide / delete it.
     console.log("handling ClickDay for dayContainer: " + dayContainer.textContent);
     const dayChoresHeaders = dayContainer.querySelectorAll("h3")
     if (dayChoresHeaders.length > 0) {
-        console.log("dayChoresHeaders: " + dayChoresHeaders);
-        dayChoresHeaders.forEach(( header ) => {
-            dayContainer.removeChild(header);
-        })
+        clearDayChores(dayContainer);
         dayContainer.classList.remove("expanded");
-
     } else {
-        // otherwise, build the div of chores + display it (with transition)
+        // clear all the other day chores and then just display the one we want
+        const allDays = parentContainer.children; 
+        for (i = 0; i < allDays.length; i++) {
+            clearDayChores(allDays[i]);
+        }
         console.log("attempting to build dayChoresDiv for day: " + dayContainer.textContent);
         buildDayChoresDiv(dayContainer, choreDay);
     }
