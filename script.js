@@ -2,11 +2,11 @@ const BASE_API_URL = "/api"
 
 // thanks Stackoverflow <3
 Date.prototype.GetFirstDayOfWeek = function() {
-    return (new Date(this.setDate(this.getDate() - this.getDay())));
+    return (new Date(this.setDate(this.getDate() - this.getDay() - 1)));
 }
 
 Date.prototype.GetLastDayOfWeek = function() {
-    return (new Date(this.setDate(this.getDate() - this.getDay() +6)));
+    return (new Date(this.setDate(this.getDate() - this.getDay() +5)));
 }
 
 fetch(BASE_API_URL + "/week")
