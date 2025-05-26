@@ -15,31 +15,50 @@ body {
     height: 100%;
     max-width: 100vw;
 }
-div#week, div#week-subheader {
+div.week, div.week-subheader {
     display: flex;
     justify-content: center;
 }
-div#week-subheader > h2{
+div.week-subheader > h2{
     margin-top: 0;
 }
-div#choresList {
+div.choresList {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    div {
-        flex-basis: 150px;
-        padding: 20px;
-        margin: 10px;
-        /* border-width: 3px; */
-        /* border-style: solid; */
-        border-radius: 10px;
-        /* border-color: var(--day-container-border-color); */
-        background-color: var(--day-container-background);
-        transition-duration: 300ms;
-        transition-property: background-color color;
-    }
-    div:hover {
-        background-color: var(--day-container-background-hover);
-        color: white;
-    }
+    align-items: first baseline;
+
+}
+
+
+div.choresList > div.day {
+    overflow: hidden;
+    flex-basis: 150px;
+    padding: 20px;
+    margin: 10px;
+    border-radius: 10px;
+    background-color: var(--day-container-background);
+    transition-duration: 300ms;
+    transition-property: background-color color max-height;
+    max-height: 107.833px;
+}
+
+div.choresList > div.day:hover {
+    background-color: var(--day-container-background-hover);
+    color: white;
+}
+
+div.choresList > div.day.expanded {
+    max-height: 150px;       
+}
+
+div#today {
+    background-color: darkorange;     
+}
+div#today:hover {
+    background-color: darkblue;
+}
+
+div.day:hover, div.day.expanded:hover{
+    cursor: pointer;
 }
