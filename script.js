@@ -1,4 +1,4 @@
-const BASE_API_URL = "http://localhost:8008"
+const BASE_API_URL = "/api"
 
 // thanks Stackoverflow <3
 Date.prototype.GetFirstDayOfWeek = function() {
