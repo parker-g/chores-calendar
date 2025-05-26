@@ -2,11 +2,11 @@ const BASE_API_URL = "http://localhost:8008"
 
 // thanks Stackoverflow <3
 Date.prototype.GetFirstDayOfWeek = function() {
-    return (new Date(this.setDate(this.getDate() - this.getDay() - 1)));
+    return (new Date(this.setDate(this.getDate() - this.getDay())));
 }
 
 Date.prototype.GetLastDayOfWeek = function() {
-    return (new Date(this.setDate(this.getDate() - this.getDay() +5)));
+    return (new Date(this.setDate(this.getDate() - this.getDay() + 6)));
 }
 
 fetch(BASE_API_URL + "/week")
@@ -72,7 +72,10 @@ function displayChores(choresData, todayIdx) {
                 console.log("clicked");
                 handleClickDay(dayDiv, choreDay, targetContainer); 
             })
-            if (count == todayIdx) {
+            const todayNum = parseInt(todayIdx);
+            if (count < todayNum) {
+                dayDiv.classList.add("past");
+            } else if (count == todayNum) {
                 dayDiv.id = 'today';
                 buildDayChoresDiv(dayDiv, choreDay);
             }
@@ -115,13 +118,11 @@ function handleClickDay(dayContainer, choreDay, parentContainer) {
 
 }
 
-
 function buildDayChoresDiv(dayContainer, choreDay) {
     // kitchen cleaner for the day
     const dayKitchenCleaner = document.createElement("h3");
     dayKitchenCleaner.textContent = `Kitchen: ${choreDay.chores.kitchen_cleaner.name}`;
     dayContainer.appendChild(dayKitchenCleaner);
-    dayContainer.classList.add("expanded");
     void dayContainer.offsetHeight;
 }
 

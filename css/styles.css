@@ -1,10 +1,9 @@
 :root {
     /* establish color variables */
-    --day-container-background: #8b8b8b;
+    --day-container-background: #999999;
     --day-container-background-hover: #0f0f0f;
     --day-container-border-color: #0c4fae;
     font-family: 'Open Sans', sans-serif;
-    font-weight: 400;
 }
 
 h1 {
@@ -34,6 +33,14 @@ div.choresList {
 
 }
 
+div.choresList > div.day.past {
+    background-color:#424242 ;
+    color: lightgray;
+}
+
+div.choresList > div.day.past:hover {
+    background-color: #0f0f0f;
+}
 
 div.choresList > div.day {
     overflow: hidden;
