@@ -43,9 +43,24 @@
 body {
     margin: 0;
     min-height: 100vh;
-    background: var(--bg-gradient), var(--bg);
+    background: var(--bg);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
+    position: relative;
+}
+
+/* The gradient lives on a fixed, viewport-sized layer behind the content
+   instead of directly on body's background. A background painted on body
+   is positioned relative to body's own (content) height, so it visibly
+   shifts whenever the page grows or shrinks — e.g. toggling lookahead
+   adds/removes week rows. background-attachment: fixed would fix desktop
+   but is unreliable on iOS Safari, so a fixed pseudo-element is used instead. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: var(--bg-gradient);
+    z-index: -1;
 }
 
 main {
@@ -386,7 +401,7 @@ main {
    based on distance from the row's center as the user scrolls. */
 @media (max-width: 860px) {
     .choresList {
-        --carousel-card-width: min(220px, 68vw);
+        --carousel-card-width: min(240px, 72vw);
         display: flex;
         overflow-x: auto;
         overflow-y: hidden;
@@ -404,7 +419,23 @@ main {
         flex: 0 0 var(--carousel-card-width);
         scroll-snap-align: center;
         scroll-snap-stop: always;
-        transition: transform 220ms ease, opacity 220ms ease, box-shadow 180ms ease;
+        transition: transform 220ms ease, opacity 220ms ease, box-shadow 180ms ease,
+            min-height 240ms ease;
+    }
+
+    /* Give the day card more presence on phones, where the bottom third of
+       the screen otherwise goes unused — especially with lookahead off. */
+    .day {
+        min-height: 55vh;
+        justify-content: center;
+        padding-top: 24px;
+        padding-bottom: 24px;
+    }
+
+    /* With multiple lookahead weeks stacked, keep cards large but back off
+       a bit so several week rows don't each demand a full screen height. */
+    .weeks-container.show-lookahead .day {
+        min-height: 41vh;
     }
 }
 

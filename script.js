@@ -218,8 +218,10 @@ function initCarouselEffect(gridContainer) {
             const dist = Math.abs(dayCenter - containerCenter);
             const normalized = Math.min(dist / (containerRect.width / 2), 1);
 
-            const scale = 1 - normalized * 0.24;
-            const opacity = 1 - normalized * 0.6;
+            // Keep the falloff subtle: shrinking neighbor cards too much pulls
+            // their outer edge inward, wasting the screen's side margins.
+            const scale = 1 - normalized * 0.1;
+            const opacity = 1 - normalized * 0.35;
             day.style.transform = `scale(${scale.toFixed(3)})`;
             day.style.opacity = opacity.toFixed(3);
 
@@ -340,6 +342,20 @@ function buildLookaheadWeekRow(week) {
     row.appendChild(grid);
 
     renderWeekRow(grid, week);
+
+    // On narrow viewports the week row is a horizontally-scrollable
+    // carousel, which starts scrolled to Sunday (the first card). Center
+    // Wednesday instead so lookahead rows don't all lead with the row's
+    // edge card. Deferred a frame since `row` isn't attached to the
+    // document yet (scrollLeft has no effect on a detached element).
+    // Set scrollLeft directly rather than using scrollIntoView, since
+    // these rows are typically off-screen below the fold when they load
+    // and scrollIntoView would also drag the whole page down to reveal them.
+    const wednesday = grid.children[3];
+    requestAnimationFrame(() => {
+        if (!wednesday) return;
+        grid.scrollLeft = wednesday.offsetLeft - (grid.clientWidth - wednesday.offsetWidth) / 2;
+    });
 
     return row;
 }
