@@ -380,30 +380,36 @@ main {
 }
 
 /* Below this width, 7 comfortably-sized day cards no longer fit on one row,
-   so the grid morphs into a horizontally-scrollable, snap-to carousel. */
+   so the grid morphs into an iOS-coverflow-style carousel: one card centered
+   and near full size, neighbors peeking in at either side, smaller and
+   faded. Scale/opacity per card are driven by JS (see initCarouselEffect)
+   based on distance from the row's center as the user scrolls. */
 @media (max-width: 860px) {
     .choresList {
+        --carousel-card-width: min(220px, 68vw);
         display: flex;
         overflow-x: auto;
-        scroll-snap-type: x proximity;
-        scroll-padding-inline: 16px;
-        gap: 10px;
-        padding: 2px 2px 10px;
-        margin: 0 -2px;
-        scrollbar-width: thin;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        gap: 14px;
+        padding: 14px calc(50% - (var(--carousel-card-width) / 2)) 18px;
+        scrollbar-width: none;
     }
 
     .choresList::-webkit-scrollbar {
-        height: 6px;
-    }
-
-    .choresList::-webkit-scrollbar-thumb {
-        background: var(--surface-border);
-        border-radius: 999px;
+        display: none;
     }
 
     .day {
-        flex: 0 0 108px;
-        scroll-snap-align: start;
+        flex: 0 0 var(--carousel-card-width);
+        scroll-snap-align: center;
+        scroll-snap-stop: always;
+        transition: transform 220ms ease, opacity 220ms ease, box-shadow 180ms ease;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .day {
+        transition: none;
     }
 }

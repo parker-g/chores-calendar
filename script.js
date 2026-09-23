@@ -158,10 +158,16 @@ function renderWeekRow(gridContainer, week) {
         buildDayAssignmentsDiv(dayDiv, choreDay);
         gridContainer.appendChild(dayDiv);
 
-        // hover doesn't exist on touch devices, so tapping toggles the
+        // In carousel mode, tapping a card scrolls it to center, where the
+        // scroll handler focuses it automatically. Otherwise (grid mode,
+        // where hover doesn't exist on touch devices), tapping toggles the
         // same "focused" look that :hover gives on desktop.
         dayDiv.addEventListener("click", () => {
-            dayDiv.classList.toggle("focused");
+            if (window.matchMedia(CAROUSEL_QUERY).matches) {
+                dayDiv.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+            } else {
+                dayDiv.classList.toggle("focused");
+            }
         })
 
         if (todayIdx !== null) {
@@ -172,6 +178,76 @@ function renderWeekRow(gridContainer, week) {
             }
         }
     });
+
+    initCarouselEffect(gridContainer);
+}
+
+const CAROUSEL_QUERY = "(max-width: 860px)";
+
+/**
+ * Drives the iOS-coverflow look on narrow viewports: as `gridContainer` is
+ * scrolled, each .day card is scaled/faded based on its distance from the
+ * row's horizontal center, so the centered card reads as "in focus" and its
+ * neighbors peek in smaller to either side.
+ */
+function initCarouselEffect(gridContainer) {
+    const mediaQuery = window.matchMedia(CAROUSEL_QUERY);
+    let queued = false;
+
+    const update = () => {
+        queued = false;
+
+        if (!mediaQuery.matches) {
+            // grid mode: clear any inline styles left over from carousel mode
+            gridContainer.querySelectorAll(".day").forEach((day) => {
+                day.style.transform = "";
+                day.style.opacity = "";
+                day.classList.remove("focused");
+            });
+            return;
+        }
+
+        const containerRect = gridContainer.getBoundingClientRect();
+        const containerCenter = containerRect.left + containerRect.width / 2;
+        let closest = null;
+        let closestDist = Infinity;
+
+        gridContainer.querySelectorAll(".day").forEach((day) => {
+            const dayRect = day.getBoundingClientRect();
+            const dayCenter = dayRect.left + dayRect.width / 2;
+            const dist = Math.abs(dayCenter - containerCenter);
+            const normalized = Math.min(dist / (containerRect.width / 2), 1);
+
+            const scale = 1 - normalized * 0.24;
+            const opacity = 1 - normalized * 0.6;
+            day.style.transform = `scale(${scale.toFixed(3)})`;
+            day.style.opacity = opacity.toFixed(3);
+
+            if (dist < closestDist) {
+                closestDist = dist;
+                closest = day;
+            }
+        });
+
+        gridContainer.querySelectorAll(".day.focused").forEach((day) => {
+            if (day !== closest) day.classList.remove("focused");
+        });
+        closest?.classList.add("focused");
+    };
+
+    const queueUpdate = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(update);
+    };
+
+    gridContainer.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+    mediaQuery.addEventListener("change", queueUpdate);
+
+    update();
+    // re-run once more after layout/fonts settle, since widths may shift
+    requestAnimationFrame(update);
 }
 
 function buildDayAssignmentsDiv(dayContainer, choreDay) {
