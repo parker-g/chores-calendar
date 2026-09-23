@@ -1,75 +1,409 @@
 :root {
-    /* establish color variables */
-    --day-container-background: #999999;
-    --day-container-background-hover: #0f0f0f;
-    --day-container-border-color: #0c4fae;
+    --bg: #f2f3f7;
+    --bg-gradient: radial-gradient(circle at 20% -10%, #e0e4ff 0%, #f2f3f7 45%);
+    --surface: #ffffff;
+    --surface-border: #e4e6ef;
+    --text: #16181f;
+    --text-muted: #6b7080;
+    --accent: #5b5ff2;
+    --accent-soft: #eceafe;
+    --today-bg: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    --today-text: #05261a;
+    --shadow: 0 10px 30px rgba(23, 25, 40, 0.08);
+    --shadow-hover: 0 16px 36px rgba(23, 25, 40, 0.14);
+    --avatar-palette-1: #f97316;
+    --avatar-palette-2: #6366f1;
+    --avatar-palette-3: #ec4899;
+    --avatar-palette-4: #14b8a6;
     font-family: 'Open Sans', sans-serif;
+    color-scheme: light dark;
 }
 
-h1 {
-    font-size: 3em;
-    font-weight: 400;
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0e0f14;
+        --bg-gradient: radial-gradient(circle at 20% -10%, #1d1f3a 0%, #0e0f14 50%);
+        --surface: #191b24;
+        --surface-border: #2a2d3a;
+        --text: #f2f3f7;
+        --text-muted: #9298ab;
+        --accent: #8b8ff8;
+        --accent-soft: #262a45;
+        --today-bg: linear-gradient(135deg, #34d399 0%, #059669 100%);
+        --today-text: #052e1c;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        --shadow-hover: 0 16px 36px rgba(0, 0, 0, 0.55);
+    }
 }
-h1, h2, h3 {
-    text-align: center;
-    font-weight: 400;
+
+* {
+    box-sizing: border-box;
 }
+
 body {
-    height: 100%;
-    max-width: 100vw;
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-gradient), var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
 }
-div.week, div.week-subheader {
-    display: flex;
-    justify-content: center;
+
+main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
 }
-div.week-subheader > h2{
-    margin-top: 0;
-}
-div.choresList {
+
+/* Header */
+
+.app-header {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.app-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-icon {
+    font-size: 1.8em;
+    line-height: 1;
+}
+
+.app-title h1 {
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.week-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 0.95em;
+}
+
+.week-badge {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
+}
+
+/* Today spotlight */
+
+.today-spotlight {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    background: var(--today-bg);
+    color: var(--today-text);
+    border-radius: 20px;
+    padding: 22px 26px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow);
+}
+
+.spotlight-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1 1 200px;
+}
+
+.spotlight-item .spotlight-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
     justify-content: center;
-    align-items: first baseline;
-
+    font-weight: 700;
+    font-size: 1.3em;
+    flex-shrink: 0;
 }
 
-div.choresList > div.day.past {
-    background-color:#424242 ;
-    color: lightgray;
+.spotlight-item .spotlight-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-div.choresList > div.day.past:hover {
-    background-color: #0f0f0f;
+.spotlight-item .spotlight-label {
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+    font-weight: 600;
 }
 
-div.choresList > div.day {
-    overflow: hidden;
-    flex-basis: 150px;
-    padding: 20px;
-    margin: 10px;
-    border-radius: 10px;
-    background-color: var(--day-container-background);
-    transition-duration: 300ms;
-    transition-property: background-color color max-height;
-    max-height: 107.833px;
+.spotlight-item .spotlight-name {
+    font-size: 1.4em;
+    font-weight: 700;
 }
 
-div.choresList > div.day:hover {
-    background-color: var(--day-container-background-hover);
-    color: white;
+/* Controls */
+
+.controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-div.choresList > div.day.expanded {
-    max-height: 150px;       
-}
-
-div#today {
-    background-color: rgb(74, 255, 71);     
-}
-div#today:hover {
-    background-color: rgb(255, 160, 44);
-}
-
-div.day:hover, div.day.expanded:hover{
+.switch {
+    position: relative;
+    display: inline-flex;
     cursor: pointer;
+}
+
+.switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+
+.switch-track {
+    width: 40px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--surface-border);
+    transition: background-color 180ms ease;
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+}
+
+.switch-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: transform 180ms ease;
+}
+
+.switch input:checked + .switch-track {
+    background: var(--accent);
+}
+
+.switch input:checked + .switch-track .switch-thumb {
+    transform: translateX(16px);
+}
+
+.switch input:focus-visible + .switch-track {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.controls-label {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Week rows */
+
+.weeks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.week-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.week-row.lookahead {
+    display: none;
+}
+
+.weeks-container.show-lookahead .week-row.lookahead {
+    display: flex;
+}
+
+.week-row-label {
+    margin: 0;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* Days grid: a 7-column grid on wide viewports; below CAROUSEL_BREAKPOINT
+   (see the matching media query) it becomes a horizontally-scrollable,
+   snap-to carousel instead of squeezing 7 columns down to unreadable widths. */
+
+.choresList {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.day {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    padding: 18px 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, opacity 180ms ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    min-width: 0;
+}
+
+.day:hover,
+.day.focused {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--accent);
+}
+
+.day-name {
+    margin: 0;
+    font-size: 0.95em;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.day-date {
+    margin: 0;
+    font-size: 0.78em;
+    color: var(--text-muted);
+}
+
+.day-assignments {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin-top: 2px;
+    opacity: 0.55;
+    transform: scale(0.97);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.day:hover .day-assignments,
+.day.focused .day-assignments,
+.day#today .day-assignments {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.assignment-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.assignment-icon {
+    font-size: 1em;
+    line-height: 1;
+}
+
+.assignment-name-full {
+    display: none;
+}
+
+.day:hover .assignment-name-full,
+.day.focused .assignment-name-full,
+.day#today .assignment-name-full {
+    display: inline;
+}
+
+.day:hover .assignment-name-short,
+.day.focused .assignment-name-short,
+.day#today .assignment-name-short {
+    display: none;
+}
+
+.day.past {
+    opacity: 0.55;
+}
+
+.day.past:hover {
+    opacity: 0.85;
+}
+
+.day#today {
+    background: var(--today-bg);
+    color: var(--today-text);
+    border-color: transparent;
+    box-shadow: var(--shadow-hover);
+}
+
+.day#today .day-date {
+    color: var(--today-text);
+    opacity: 0.75;
+}
+
+@media (max-width: 480px) {
+    .app-title h1 {
+        font-size: 1.5em;
+    }
+
+    .today-spotlight {
+        flex-wrap: wrap;
+    }
+}
+
+/* Below this width, 7 comfortably-sized day cards no longer fit on one row,
+   so the grid morphs into a horizontally-scrollable, snap-to carousel. */
+@media (max-width: 860px) {
+    .choresList {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        scroll-padding-inline: 16px;
+        gap: 10px;
+        padding: 2px 2px 10px;
+        margin: 0 -2px;
+        scrollbar-width: thin;
+    }
+
+    .choresList::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .choresList::-webkit-scrollbar-thumb {
+        background: var(--surface-border);
+        border-radius: 999px;
+    }
+
+    .day {
+        flex: 0 0 108px;
+        scroll-snap-align: start;
+    }
 }

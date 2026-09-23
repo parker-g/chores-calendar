@@ -11,9 +11,32 @@
 </head>
 <body>
     <main>
-        <div class="week"></div>
-        <div class="week-subheader"></div>
-        <div class="choresList"></div>
+        <header class="app-header">
+            <div class="app-title">
+                <span class="app-icon" aria-hidden="true">🍽️</span>
+                <h1>Chores</h1>
+            </div>
+            <div class="week-meta">
+                <span class="week-badge"></span>
+                <span class="week-range"></span>
+            </div>
+        </header>
+
+        <section class="today-spotlight" aria-live="polite"></section>
+
+        <div class="controls-bar">
+            <label class="switch">
+                <input type="checkbox" id="lookaheadToggle">
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+            <label for="lookaheadToggle" class="controls-label">Look ahead 3 weeks</label>
+        </div>
+
+        <section class="weeks-container" id="weeksContainer">
+            <div class="week-row" id="currentWeekRow">
+                <div class="choresList" id="currentWeekGrid"></div>
+            </div>
+        </section>
     </main>
     <script src="script.js"></script>
 </body>
