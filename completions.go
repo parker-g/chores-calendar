@@ -24,6 +24,13 @@ func initCompletionsDB(path string) error {
 	if err != nil {
 		return fmt.Errorf("opening completions db: %w", err)
 	}
+	// Serialize all database access through a single connection, set before
+	// any query runs. database/sql's pool can otherwise hand out more than
+	// one underlying connection during startup (e.g. one for Ping, another
+	// for the PRAGMA below), and switching to WAL mode requires an exclusive
+	// lock — a second concurrent connection can make that PRAGMA fail with
+	// SQLITE_BUSY. This is safe for a small single-process household app.
+	conn.SetMaxOpenConns(1)
 	if err := conn.Ping(); err != nil {
 		return fmt.Errorf("pinging completions db: %w", err)
 	}
@@ -32,9 +39,6 @@ func initCompletionsDB(path string) error {
 		conn.Close()
 		return fmt.Errorf("enabling WAL mode: %w", err)
 	}
-	// Serialize all database writes through a single connection to avoid
-	// SQLITE_BUSY errors. This is safe for a small single-process household app.
-	conn.SetMaxOpenConns(1)
 	const schema = `
 		CREATE TABLE IF NOT EXISTS completions (
 			chore_id TEXT NOT NULL,
