@@ -72,6 +72,55 @@ function renderCurrentWeek() {
             // the user's scroll position around.
             document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
         }
+
+        return maybeRenderYesterdayCard();
+    });
+}
+
+/**
+ * On every day except Sunday, "yesterday" already appears (as the
+ * `.past`-marked card) in the current week's grid, which already has
+ * completion controls. On Sundays, yesterday (Saturday) belongs to the
+ * *previous* calendar week, which this app never otherwise fetches or
+ * renders — so it gets its own small standalone card instead.
+ */
+function maybeRenderYesterdayCard() {
+    const container = document.getElementById("yesterdayCard");
+    const today = new Date();
+
+    if (today.getDay() !== 0 /* Sunday */) {
+        container.hidden = true;
+        container.innerHTML = "";
+        return Promise.resolve();
+    }
+
+    return fetchWeekData(-1).then((week) => {
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const yesterdayStr = shortDate(yesterday);
+
+        const dateForDay = (choreDay) => {
+            const d = new Date(week.weekStart);
+            d.setDate(week.weekStart.getDate() + (choreDay.num - 1));
+            return d;
+        };
+        const yesterdayDay = week.days.find(
+            (choreDay) => dateForDay(choreDay).toDateString() === yesterday.toDateString()
+        );
+        if (!yesterdayDay) {
+            container.hidden = true;
+            return;
+        }
+
+        container.innerHTML = "";
+        container.hidden = false;
+
+        const label = document.createElement("p");
+        label.classList.add("yesterday-card-label");
+        label.textContent = `Yesterday · ${yesterdayStr}`;
+        container.appendChild(label);
+
+        buildDayAssignmentsDiv(container, yesterdayDay, true);
     });
 }
 
