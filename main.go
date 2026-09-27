@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -178,12 +180,36 @@ func calculateWeek(aTime *time.Time) Response[Week] {
 	}
 }
 
-// Adds 'access-control-allow-origin' header to response
-// if client sends an Origin header
+// allowedOrigins holds the set of origins permitted to make cross-origin
+// requests to this API, loaded from the ALLOWED_ORIGINS env var at startup.
+var allowedOrigins map[string]bool
+
+// loadAllowedOrigins parses a comma-separated list of origins (e.g.
+// "https://chores.example.com,http://localhost:8008") from the
+// ALLOWED_ORIGINS env var into a lookup set.
+func loadAllowedOrigins() map[string]bool {
+	origins := map[string]bool{}
+	raw := os.Getenv("ALLOWED_ORIGINS")
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			origins[o] = true
+		}
+	}
+	return origins
+}
+
+// Adds an 'access-control-allow-origin' header to the response, but only
+// when the client's Origin header matches an entry in allowedOrigins —
+// unlike reflecting any Origin verbatim, this stops arbitrary third-party
+// websites from being granted cross-origin access.
 func handleOriginHeader(c *gin.Context) {
 	originHeaderLen := len(c.Request.Header["Origin"])
 	if originHeaderLen > 0 {
-		c.Header("Access-Control-Allow-Origin", c.Request.Header["Origin"][0])
+		origin := c.Request.Header["Origin"][0]
+		if allowedOrigins[origin] {
+			c.Header("Access-Control-Allow-Origin", origin)
+		}
 	}
 }
 
@@ -217,6 +243,11 @@ func getWeek(c *gin.Context) {
 }
 
 func main() {
+	allowedOrigins = loadAllowedOrigins()
+	if len(allowedOrigins) == 0 {
+		log.Println("warning: ALLOWED_ORIGINS is unset/empty; no cross-origin requests will be permitted")
+	}
+
 	if err := initCompletionsDB("chores.db"); err != nil {
 		panic(err)
 	}
