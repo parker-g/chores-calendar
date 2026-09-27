@@ -3,8 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
 )
 
@@ -143,4 +145,51 @@ func isValidCompletionDate(date string, now time.Time) bool {
 	}
 	today, yesterday := todayAndYesterday(now)
 	return date == today || date == yesterday
+}
+
+// CompletionToggleRequest is the body of POST /completions/toggle.
+type CompletionToggleRequest struct {
+	ChoreID string `json:"chore_id"`
+	Date    string `json:"date"`
+}
+
+// handleToggleCompletion toggles completion of one chore on one date.
+// Only today or yesterday (server local time) may be toggled.
+func handleToggleCompletion(c *gin.Context) {
+	handleOriginHeader(c)
+
+	var req CompletionToggleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.ChoreID == "" || req.Date == "" {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "chore_id and date are required"})
+		return
+	}
+	if !isValidChoreID(req.ChoreID) {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "unknown chore_id"})
+		return
+	}
+	if !isValidCompletionDate(req.Date, time.Now()) {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "date must be today or yesterday"})
+		return
+	}
+
+	completed, err := toggleCompletion(req.ChoreID, req.Date)
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusOK, gin.H{"completed": completed})
+}
+
+// handleCompletionsPreflight handles the CORS preflight (OPTIONS) request
+// the browser sends ahead of POST /completions/toggle, mirroring
+// handleWeekPreflight in main.go.
+func handleCompletionsPreflight(c *gin.Context) {
+	handleOriginHeader(c)
+	c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Content-Type")
+	c.Status(http.StatusNoContent)
 }

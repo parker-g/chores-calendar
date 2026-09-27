@@ -207,5 +207,8 @@ func main() {
 	router.POST("/week", getWeek)
 	router.OPTIONS("/week", handleWeekPreflight)
 
+	router.POST("/completions/toggle", handleToggleCompletion)
+	router.OPTIONS("/completions/toggle", handleCompletionsPreflight)
+
 	router.Run("0.0.0.0:8008")
 }
