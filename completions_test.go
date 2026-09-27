@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func setupTestDB(t *testing.T) {
@@ -94,5 +95,47 @@ func TestToggleCompletion_ConcurrentTogglesDontError(t *testing.T) {
 	// with N is preserved.
 	if _, err := isCompleted("kitchen_cleaner", "2026-09-26"); err != nil {
 		t.Fatalf("isCompleted failed after concurrent toggles: %v", err)
+	}
+}
+
+func TestIsValidChoreID(t *testing.T) {
+	if !isValidChoreID("kitchen_cleaner") {
+		t.Errorf("expected kitchen_cleaner to be a valid chore id")
+	}
+	if isValidChoreID("not_a_real_chore") {
+		t.Errorf("expected not_a_real_chore to be invalid")
+	}
+}
+
+func TestTodayAndYesterday(t *testing.T) {
+	now := time.Date(2026, 9, 26, 15, 0, 0, 0, time.UTC) // a Saturday
+	today, yesterday := todayAndYesterday(now)
+	if today != "2026-09-26" {
+		t.Errorf("expected today 2026-09-26, got %s", today)
+	}
+	if yesterday != "2026-09-25" {
+		t.Errorf("expected yesterday 2026-09-25, got %s", yesterday)
+	}
+}
+
+func TestIsValidCompletionDate(t *testing.T) {
+	now := time.Date(2026, 9, 26, 15, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		date string
+		want bool
+	}{
+		{"2026-09-26", true},  // today
+		{"2026-09-25", true},  // yesterday
+		{"2026-09-24", false}, // two days ago
+		{"2026-09-27", false}, // tomorrow
+		{"09/26/2026", false}, // wrong format
+		{"2026-09-26T00:00:00Z", false}, // timestamp, not a date
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := isValidCompletionDate(c.date, now); got != c.want {
+			t.Errorf("isValidCompletionDate(%q) = %v, want %v", c.date, got, c.want)
+		}
 	}
 }

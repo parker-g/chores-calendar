@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -103,4 +104,43 @@ func toggleCompletion(choreID, date string) (bool, error) {
 		return false, fmt.Errorf("committing transaction: %w", err)
 	}
 	return true, nil
+}
+
+// isValidChoreID reports whether choreID matches one of the configured
+// chores. Guards against typos or a stale client referencing a chore
+// that's been renamed or removed.
+func isValidChoreID(choreID string) bool {
+	for _, c := range chores {
+		if c.ID == choreID {
+			return true
+		}
+	}
+	return false
+}
+
+// todayAndYesterday returns now's calendar date and the day before it,
+// both as YYYY-MM-DD strings in now's own location.
+func todayAndYesterday(now time.Time) (today, yesterday string) {
+	const layout = "2006-01-02"
+	today = now.Format(layout)
+	yesterday = now.AddDate(0, 0, -1).Format(layout)
+	return
+}
+
+// isValidCompletionDate reports whether date is exactly today or
+// yesterday (relative to now) AND is a well-formed YYYY-MM-DD string.
+// A string that happens to parse but isn't in that exact format (extra
+// time component, different separators) is rejected rather than
+// normalized, so stored dates are always predictable.
+func isValidCompletionDate(date string, now time.Time) bool {
+	const layout = "2006-01-02"
+	parsed, err := time.Parse(layout, date)
+	if err != nil {
+		return false
+	}
+	if parsed.Format(layout) != date {
+		return false
+	}
+	today, yesterday := todayAndYesterday(now)
+	return date == today || date == yesterday
 }
