@@ -41,8 +41,9 @@ type Chore struct {
 
 // Assignment pairs a Chore with the Person responsible for it on a given day.
 type Assignment struct {
-	Chore  Chore  `json:"chore"`
-	Person Person `json:"person"`
+	Chore     Chore  `json:"chore"`
+	Person    Person `json:"person"`
+	Completed bool   `json:"completed"`
 }
 
 // Day
@@ -50,6 +51,7 @@ type Assignment struct {
 // Assignments - one entry per chore, naming who's responsible that day
 type Day struct {
 	Num         int          `json:"num"`
+	Date        string       `json:"date"`
 	Assignments []Assignment `json:"assignments"`
 }
 
@@ -120,27 +122,37 @@ func NonISOWeek(t time.Time) (year int, week int) {
 	return
 }
 
-func calculateDays(weekNum int) [7]Day {
+func calculateDays(weekNum int, weekStart time.Time) [7]Day {
 	calcDays := [7]Day{}
 	numHousemates := len(housemates)
 	for dayIdx := 0; dayIdx < 7; dayIdx++ {
 		dayNum := dayIdx + 1
+		date := weekStart.AddDate(0, 0, dayIdx).Format("2006-01-02")
 		var assignments []Assignment
 		for _, chore := range chores {
+			var personIdx int
 			switch chore.Frequency {
 			case Weekly:
 				if dayNum != chore.WeeklyDay {
 					continue
 				}
-				personIdx := (weekNum + chore.offset) % numHousemates
-				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
+				personIdx = (weekNum + chore.offset) % numHousemates
 			default: // Daily
-				personIdx := (weekNum + dayIdx + chore.offset) % numHousemates
-				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
+				personIdx = (weekNum + dayIdx + chore.offset) % numHousemates
 			}
+			completed, err := isCompleted(chore.ID, date)
+			if err != nil {
+				completed = false
+			}
+			assignments = append(assignments, Assignment{
+				Chore:     chore,
+				Person:    housemates[personIdx],
+				Completed: completed,
+			})
 		}
 		calcDays[dayIdx] = Day{
 			Num:         dayNum,
+			Date:        date,
 			Assignments: assignments,
 		}
 	}
@@ -150,7 +162,8 @@ func calculateDays(weekNum int) [7]Day {
 func calculateWeek(aTime *time.Time) Response[Week] {
 	_, week := NonISOWeek(*aTime)
 	calcWeek := (week + weekOffset) % len(housemates)
-	days := calculateDays(calcWeek)
+	weekStart := aTime.AddDate(0, 0, -int(aTime.Weekday()))
+	days := calculateDays(calcWeek, weekStart)
 	nowTime := time.Now().UTC()
 	return Response[Week]{
 		Data: Week{
