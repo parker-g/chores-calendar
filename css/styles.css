@@ -348,6 +348,40 @@ main {
     line-height: 1;
 }
 
+.assignment-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid var(--text-muted);
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.assignment-toggle:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.assignment-toggle:checked::after {
+    content: "✓";
+    color: white;
+    font-size: 0.75em;
+    font-weight: 700;
+}
+
+.assignment-row.completed .assignment-name-short,
+.assignment-row.completed .assignment-name-full {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
 .assignment-name-full {
     display: none;
 }

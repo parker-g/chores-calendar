@@ -53,18 +53,29 @@ function fetchWeekData(offsetWeeks) {
         });
 }
 
-fetchWeekData(0).then((week) => {
-    displayWeekNum(week.weekNum);
-    displayWeekSubheader(week.weekStart);
-    renderWeekRow(document.getElementById("currentWeekGrid"), week);
-    displayTodaySpotlight(week.days, week.todayIdx);
+let firstRenderDone = false;
 
-    // on narrow viewports the week row is a horizontally-scrollable
-    // carousel, so bring today's card into view instead of leaving the
-    // user parked on Sunday.
-    document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
-});
+/** Fetches and renders the current week (badge, subheader, grid, spotlight). */
+function renderCurrentWeek() {
+    return fetchWeekData(0).then((week) => {
+        displayWeekNum(week.weekNum);
+        displayWeekSubheader(week.weekStart);
+        renderWeekRow(document.getElementById("currentWeekGrid"), week);
+        displayTodaySpotlight(week.days, week.todayIdx);
 
+        if (!firstRenderDone) {
+            firstRenderDone = true;
+            // on narrow viewports the week row is a horizontally-scrollable
+            // carousel, so bring today's card into view instead of leaving
+            // the user parked on Sunday. Only do this on the very first
+            // render — later (polling-driven) re-renders shouldn't yank
+            // the user's scroll position around.
+            document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
+        }
+    });
+}
+
+renderCurrentWeek();
 setUpLookaheadToggle();
 
 function initialsForName(name) {
@@ -155,7 +166,14 @@ function renderWeekRow(gridContainer, week) {
         dayDate.textContent = shortDate(dateForDay);
         dayDiv.appendChild(dayDate);
 
-        buildDayAssignmentsDiv(dayDiv, choreDay);
+        // Only today and yesterday (within the current week) may be marked
+        // complete — the backend rejects toggles for any other date. When
+        // today is Sunday, yesterday falls in the *previous* week and so
+        // isn't representable here at all; that Sunday edge case gets its
+        // own standalone card elsewhere rather than a toggle in this grid.
+        const showToggle =
+            todayIdx !== null && (choreDay.num === todayIdx || choreDay.num === todayIdx - 1);
+        buildDayAssignmentsDiv(dayDiv, choreDay, showToggle);
         gridContainer.appendChild(dayDiv);
 
         // In carousel mode, tapping a card scrolls it to center, where the
@@ -252,7 +270,7 @@ function initCarouselEffect(gridContainer) {
     requestAnimationFrame(update);
 }
 
-function buildDayAssignmentsDiv(dayContainer, choreDay) {
+function buildDayAssignmentsDiv(dayContainer, choreDay, showToggle) {
     const assignmentsList = document.createElement("div");
     assignmentsList.classList.add("day-assignments");
 
@@ -261,6 +279,9 @@ function buildDayAssignmentsDiv(dayContainer, choreDay) {
 
         const row = document.createElement("p");
         row.classList.add("assignment-row");
+        if (assignment.completed) {
+            row.classList.add("completed");
+        }
 
         const icon = document.createElement("span");
         icon.classList.add("assignment-icon");
@@ -277,10 +298,59 @@ function buildDayAssignmentsDiv(dayContainer, choreDay) {
         row.appendChild(icon);
         row.appendChild(shortName);
         row.appendChild(fullName);
+
+        if (showToggle) {
+            const toggle = document.createElement("input");
+            toggle.type = "checkbox";
+            toggle.classList.add("assignment-toggle");
+            toggle.checked = assignment.completed;
+            toggle.setAttribute("aria-label", `Mark ${assignment.chore.name} complete`);
+            toggle.addEventListener("click", (event) => {
+                // don't let the click bubble up to the day card's own click
+                // handler (which toggles "focused"/scrolls the carousel).
+                event.stopPropagation();
+            });
+            toggle.addEventListener("change", () => {
+                handleToggleCompletion(assignment.chore.id, choreDay.date, toggle);
+            });
+            row.appendChild(toggle);
+        }
+
         assignmentsList.appendChild(row);
     });
 
     dayContainer.appendChild(assignmentsList);
+}
+
+/**
+ * Sends a completion toggle to the backend and re-renders the current
+ * week on success. Disables `toggleEl` while the request is in flight so
+ * a rapid double-click can't fire two overlapping toggles. On failure,
+ * reverts the checkbox to the state it had before the click — a native
+ * checkbox flips its own visual state immediately on click, before this
+ * handler runs, so a failed request must undo that rather than leaving
+ * the UI showing a change that never actually happened server-side.
+ */
+function handleToggleCompletion(choreId, date, toggleEl) {
+    toggleEl.disabled = true;
+    fetch(BASE_API_URL + "/completions/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chore_id: choreId, date: date }),
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`HTTP Error! status: ${response.status}`);
+            }
+            return renderCurrentWeek();
+        })
+        .catch((err) => {
+            console.error("Failed to toggle completion:", err);
+            toggleEl.checked = !toggleEl.checked;
+        })
+        .finally(() => {
+            toggleEl.disabled = false;
+        });
 }
 
 function getDay(day) {
