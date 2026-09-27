@@ -202,6 +202,11 @@ func getWeek(c *gin.Context) {
 }
 
 func main() {
+	if err := initCompletionsDB("chores.db"); err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
 	router := gin.Default()
 	router.GET("/week", getCurrentWeek)
 	router.POST("/week", getWeek)

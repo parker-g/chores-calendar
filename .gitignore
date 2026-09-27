@@ -2,3 +2,6 @@
 *.exe
 chores-calendar
 deploy-nginx.sh
+chores.db
+chores.db-shm
+chores.db-wal
