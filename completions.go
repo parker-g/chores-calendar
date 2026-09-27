@@ -67,12 +67,18 @@ func isCompleted(choreID, date string) (bool, error) {
 // returns the new state. A row's presence means "completed"; toggling
 // off deletes the row rather than storing a completed=false row.
 //
-// All writes are serialized through a single connection (SetMaxOpenConns(1)),
-// which eliminates SQLITE_BUSY errors by construction. The insert-conflict
-// fallback below is a backstop in case the constraint is encountered, but
-// the primary defense against concurrent races is serialization itself.
+// The DELETE and INSERT are wrapped in a single transaction to ensure
+// atomicity. Combined with SetMaxOpenConns(1), a transaction holds the
+// one pooled connection for its full duration, ensuring true serialization
+// of the complete delete-then-insert sequence across concurrent calls.
 func toggleCompletion(choreID, date string) (bool, error) {
-	res, err := db.Exec(`DELETE FROM completions WHERE chore_id = ? AND date = ?`, choreID, date)
+	tx, err := db.Begin()
+	if err != nil {
+		return false, fmt.Errorf("starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(`DELETE FROM completions WHERE chore_id = ? AND date = ?`, choreID, date)
 	if err != nil {
 		return false, fmt.Errorf("deleting completion: %w", err)
 	}
@@ -81,18 +87,24 @@ func toggleCompletion(choreID, date string) (bool, error) {
 		return false, fmt.Errorf("checking delete result: %w", err)
 	}
 	if rowsDeleted > 0 {
+		if err := tx.Commit(); err != nil {
+			return false, fmt.Errorf("committing transaction: %w", err)
+		}
 		return false, nil
 	}
 
-	_, err = db.Exec(`INSERT INTO completions (chore_id, date) VALUES (?, ?)`, choreID, date)
+	_, err = tx.Exec(`INSERT INTO completions (chore_id, date) VALUES (?, ?)`, choreID, date)
 	if err != nil {
-		// A concurrent toggle may have inserted the same row between our
-		// DELETE and this INSERT. Treat that race as "already completed"
-		// rather than an error.
+		// Even with transaction-based serialization, the row might exist
+		// if another transaction committed it after we started our transaction.
+		// Treat that as "already completed" rather than an error.
 		if already, checkErr := isCompleted(choreID, date); checkErr == nil && already {
 			return true, nil
 		}
 		return false, fmt.Errorf("inserting completion: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("committing transaction: %w", err)
 	}
 	return true, nil
 }
