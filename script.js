@@ -75,8 +75,11 @@ function renderCurrentWeek() {
     });
 }
 
+const POLL_INTERVAL_MS = 45000;
+
 renderCurrentWeek();
 setUpLookaheadToggle();
+setInterval(renderCurrentWeek, POLL_INTERVAL_MS);
 
 function initialsForName(name) {
     return name.trim().charAt(0).toUpperCase();
