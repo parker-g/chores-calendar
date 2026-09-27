@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -142,6 +143,7 @@ func calculateDays(weekNum int, weekStart time.Time) [7]Day {
 			}
 			completed, err := isCompleted(chore.ID, date)
 			if err != nil {
+				log.Printf("completion lookup failed for chore_id=%s date=%s: %v", chore.ID, date, err)
 				completed = false
 			}
 			assignments = append(assignments, Assignment{

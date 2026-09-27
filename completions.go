@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -178,7 +179,8 @@ func handleToggleCompletion(c *gin.Context) {
 
 	completed, err := toggleCompletion(req.ChoreID, req.Date)
 	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("toggling completion for chore_id=%s date=%s: %v", req.ChoreID, req.Date, err)
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "could not record completion"})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, gin.H{"completed": completed})

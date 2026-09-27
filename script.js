@@ -57,13 +57,22 @@ let firstRenderDone = false;
 
 /** Fetches and renders the current week (badge, subheader, grid, spotlight). */
 function renderCurrentWeek() {
+    const grid = document.getElementById("currentWeekGrid");
+    // renderWeekRow wipes and rebuilds the grid's children on every call
+    // (including 45s poll-driven re-renders), which resets scrollLeft to 0
+    // — the leftmost card, Sunday. On a poll-driven re-render we want to
+    // preserve wherever the user had scrolled the carousel to; only the
+    // very first render should center on "today" instead.
+    const isFirstRender = !firstRenderDone;
+    const previousScrollLeft = grid.scrollLeft;
+
     return fetchWeekData(0).then((week) => {
         displayWeekNum(week.weekNum);
         displayWeekSubheader(week.weekStart);
-        renderWeekRow(document.getElementById("currentWeekGrid"), week);
+        renderWeekRow(grid, week);
         displayTodaySpotlight(week.days, week.todayIdx);
 
-        if (!firstRenderDone) {
+        if (isFirstRender) {
             firstRenderDone = true;
             // on narrow viewports the week row is a horizontally-scrollable
             // carousel, so bring today's card into view instead of leaving
@@ -71,6 +80,16 @@ function renderCurrentWeek() {
             // render — later (polling-driven) re-renders shouldn't yank
             // the user's scroll position around.
             document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
+        } else {
+            // Restore the scroll position that innerHTML-rebuilding just
+            // clobbered. initCarouselEffect's own requestAnimationFrame
+            // (which recalculates card scale/opacity) can run after this
+            // and read a stale layout, so re-apply once more on the next
+            // frame to make sure it actually sticks.
+            grid.scrollLeft = previousScrollLeft;
+            requestAnimationFrame(() => {
+                grid.scrollLeft = previousScrollLeft;
+            });
         }
 
         return maybeRenderYesterdayCard();
@@ -126,9 +145,11 @@ function maybeRenderYesterdayCard() {
 
 const POLL_INTERVAL_MS = 45000;
 
-renderCurrentWeek();
+renderCurrentWeek().catch((err) => console.error("Failed to load current week:", err));
 setUpLookaheadToggle();
-setInterval(renderCurrentWeek, POLL_INTERVAL_MS);
+setInterval(() => {
+    renderCurrentWeek().catch((err) => console.error("Failed to refresh current week:", err));
+}, POLL_INTERVAL_MS);
 
 function initialsForName(name) {
     return name.trim().charAt(0).toUpperCase();
@@ -261,6 +282,23 @@ const CAROUSEL_QUERY = "(max-width: 860px)";
  * neighbors peek in smaller to either side.
  */
 function initCarouselEffect(gridContainer) {
+    // renderWeekRow calls this on every render (including 45s poll-driven
+    // re-renders of #currentWeekGrid, which never gets replaced as a node
+    // — only its children are wiped via innerHTML = ""). Without this
+    // guard, every call would add another set of "scroll"/"resize"/
+    // "change" listeners on top of the ones from previous calls, leaking
+    // unboundedly over hours of polling. So listener registration happens
+    // only once per gridContainer (tracked via a dataset marker), but
+    // `update()` still runs on every call, since assignments/completion
+    // state changes each render and the carousel scale/opacity should
+    // reflect the current DOM.
+    if (gridContainer.dataset.carouselInit) {
+        gridContainer._carouselUpdate();
+        requestAnimationFrame(gridContainer._carouselUpdate);
+        return;
+    }
+    gridContainer.dataset.carouselInit = "true";
+
     const mediaQuery = window.matchMedia(CAROUSEL_QUERY);
     let queued = false;
 
@@ -316,6 +354,8 @@ function initCarouselEffect(gridContainer) {
     gridContainer.addEventListener("scroll", queueUpdate, { passive: true });
     window.addEventListener("resize", queueUpdate);
     mediaQuery.addEventListener("change", queueUpdate);
+
+    gridContainer._carouselUpdate = update;
 
     update();
     // re-run once more after layout/fonts settle, since widths may shift
