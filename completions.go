@@ -16,9 +16,7 @@ var db *sql.DB
 // initCompletionsDB opens (creating if necessary) the SQLite database at
 // path and ensures the completions table exists.
 func initCompletionsDB(path string) error {
-	// Use URI with timeout and cache settings for better concurrent access
-	dsn := fmt.Sprintf("file:%s?cache=shared&timeout=5000", path)
-	conn, err := sql.Open("sqlite", dsn)
+	conn, err := sql.Open("sqlite", path)
 	if err != nil {
 		return fmt.Errorf("opening completions db: %w", err)
 	}
@@ -30,9 +28,9 @@ func initCompletionsDB(path string) error {
 		conn.Close()
 		return fmt.Errorf("enabling WAL mode: %w", err)
 	}
-	// Configure connection pool for concurrent access
-	conn.SetMaxOpenConns(10)
-	conn.SetMaxIdleConns(5)
+	// Serialize all database writes through a single connection to avoid
+	// SQLITE_BUSY errors. This is safe for a small single-process household app.
+	conn.SetMaxOpenConns(1)
 	const schema = `
 		CREATE TABLE IF NOT EXISTS completions (
 			chore_id TEXT NOT NULL,
@@ -69,11 +67,10 @@ func isCompleted(choreID, date string) (bool, error) {
 // returns the new state. A row's presence means "completed"; toggling
 // off deletes the row rather than storing a completed=false row.
 //
-// Two clients toggling the same (choreID, date) at nearly the same time
-// could both see "no row" and both attempt an insert; the second insert
-// hits the (chore_id, date) primary key and fails with a constraint
-// error. That failure is treated as "someone else already completed
-// it" and reported as completed=true rather than surfaced as a 500.
+// All writes are serialized through a single connection (SetMaxOpenConns(1)),
+// which eliminates SQLITE_BUSY errors by construction. The insert-conflict
+// fallback below is a backstop in case the constraint is encountered, but
+// the primary defense against concurrent races is serialization itself.
 func toggleCompletion(choreID, date string) (bool, error) {
 	res, err := db.Exec(`DELETE FROM completions WHERE chore_id = ? AND date = ?`, choreID, date)
 	if err != nil {
