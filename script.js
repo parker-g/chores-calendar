@@ -1,4 +1,21 @@
-const BASE_API_URL = "http://localhost:8008"
+let BASE_API_URL = "http://localhost:8008";
+
+/**
+ * config.json sits alongside this file and is served from the same origin,
+ * so this fetch needs no prior knowledge of the backend's URL — unlike
+ * fetching config from the backend itself, which would require already
+ * knowing the backend's URL to fetch it from. Falls back to the default
+ * above if the file is missing or malformed.
+ */
+const configLoaded = fetch("./config.json")
+    .then((response) => response.json())
+    .then((config) => {
+        if (config && typeof config.apiUrl === "string" && config.apiUrl) {
+            BASE_API_URL = config.apiUrl;
+        }
+    })
+    .catch((err) => console.error("Failed to load config.json, using default BASE_API_URL:", err));
+
 const LOOKAHEAD_WEEKS = 3;
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -145,11 +162,13 @@ function maybeRenderYesterdayCard() {
 
 const POLL_INTERVAL_MS = 45000;
 
-renderCurrentWeek().catch((err) => console.error("Failed to load current week:", err));
-setUpLookaheadToggle();
-setInterval(() => {
-    renderCurrentWeek().catch((err) => console.error("Failed to refresh current week:", err));
-}, POLL_INTERVAL_MS);
+configLoaded.then(() => {
+    renderCurrentWeek().catch((err) => console.error("Failed to load current week:", err));
+    setUpLookaheadToggle();
+    setInterval(() => {
+        renderCurrentWeek().catch((err) => console.error("Failed to refresh current week:", err));
+    }, POLL_INTERVAL_MS);
+});
 
 function initialsForName(name) {
     return name.trim().charAt(0).toUpperCase();
