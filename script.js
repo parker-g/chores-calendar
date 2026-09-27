@@ -53,19 +53,103 @@ function fetchWeekData(offsetWeeks) {
         });
 }
 
-fetchWeekData(0).then((week) => {
-    displayWeekNum(week.weekNum);
-    displayWeekSubheader(week.weekStart);
-    renderWeekRow(document.getElementById("currentWeekGrid"), week);
-    displayTodaySpotlight(week.days, week.todayIdx);
+let firstRenderDone = false;
 
-    // on narrow viewports the week row is a horizontally-scrollable
-    // carousel, so bring today's card into view instead of leaving the
-    // user parked on Sunday.
-    document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
-});
+/** Fetches and renders the current week (badge, subheader, grid, spotlight). */
+function renderCurrentWeek() {
+    const grid = document.getElementById("currentWeekGrid");
+    // renderWeekRow wipes and rebuilds the grid's children on every call
+    // (including 45s poll-driven re-renders), which resets scrollLeft to 0
+    // — the leftmost card, Sunday. On a poll-driven re-render we want to
+    // preserve wherever the user had scrolled the carousel to; only the
+    // very first render should center on "today" instead.
+    const isFirstRender = !firstRenderDone;
+    const previousScrollLeft = grid.scrollLeft;
 
+    return fetchWeekData(0).then((week) => {
+        displayWeekNum(week.weekNum);
+        displayWeekSubheader(week.weekStart);
+        renderWeekRow(grid, week);
+        displayTodaySpotlight(week.days, week.todayIdx);
+
+        if (isFirstRender) {
+            firstRenderDone = true;
+            // on narrow viewports the week row is a horizontally-scrollable
+            // carousel, so bring today's card into view instead of leaving
+            // the user parked on Sunday. Only do this on the very first
+            // render — later (polling-driven) re-renders shouldn't yank
+            // the user's scroll position around.
+            document.getElementById("today")?.scrollIntoView({ inline: "center", block: "nearest" });
+        } else {
+            // Restore the scroll position that innerHTML-rebuilding just
+            // clobbered. initCarouselEffect's own requestAnimationFrame
+            // (which recalculates card scale/opacity) can run after this
+            // and read a stale layout, so re-apply once more on the next
+            // frame to make sure it actually sticks.
+            grid.scrollLeft = previousScrollLeft;
+            requestAnimationFrame(() => {
+                grid.scrollLeft = previousScrollLeft;
+            });
+        }
+
+        return maybeRenderYesterdayCard();
+    });
+}
+
+/**
+ * On every day except Sunday, "yesterday" already appears (as the
+ * `.past`-marked card) in the current week's grid, which already has
+ * completion controls. On Sundays, yesterday (Saturday) belongs to the
+ * *previous* calendar week, which this app never otherwise fetches or
+ * renders — so it gets its own small standalone card instead.
+ */
+function maybeRenderYesterdayCard() {
+    const container = document.getElementById("yesterdayCard");
+    const today = new Date();
+
+    if (today.getDay() !== 0 /* Sunday */) {
+        container.hidden = true;
+        container.innerHTML = "";
+        return Promise.resolve();
+    }
+
+    return fetchWeekData(-1).then((week) => {
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const yesterdayStr = shortDate(yesterday);
+
+        const dateForDay = (choreDay) => {
+            const d = new Date(week.weekStart);
+            d.setDate(week.weekStart.getDate() + (choreDay.num - 1));
+            return d;
+        };
+        const yesterdayDay = week.days.find(
+            (choreDay) => dateForDay(choreDay).toDateString() === yesterday.toDateString()
+        );
+        if (!yesterdayDay) {
+            container.hidden = true;
+            return;
+        }
+
+        container.innerHTML = "";
+        container.hidden = false;
+
+        const label = document.createElement("p");
+        label.classList.add("yesterday-card-label");
+        label.textContent = `Yesterday · ${yesterdayStr}`;
+        container.appendChild(label);
+
+        buildDayAssignmentsDiv(container, yesterdayDay, true);
+    });
+}
+
+const POLL_INTERVAL_MS = 45000;
+
+renderCurrentWeek().catch((err) => console.error("Failed to load current week:", err));
 setUpLookaheadToggle();
+setInterval(() => {
+    renderCurrentWeek().catch((err) => console.error("Failed to refresh current week:", err));
+}, POLL_INTERVAL_MS);
 
 function initialsForName(name) {
     return name.trim().charAt(0).toUpperCase();
@@ -155,7 +239,14 @@ function renderWeekRow(gridContainer, week) {
         dayDate.textContent = shortDate(dateForDay);
         dayDiv.appendChild(dayDate);
 
-        buildDayAssignmentsDiv(dayDiv, choreDay);
+        // Only today and yesterday (within the current week) may be marked
+        // complete — the backend rejects toggles for any other date. When
+        // today is Sunday, yesterday falls in the *previous* week and so
+        // isn't representable here at all; that Sunday edge case gets its
+        // own standalone card elsewhere rather than a toggle in this grid.
+        const showToggle =
+            todayIdx !== null && (choreDay.num === todayIdx || choreDay.num === todayIdx - 1);
+        buildDayAssignmentsDiv(dayDiv, choreDay, showToggle);
         gridContainer.appendChild(dayDiv);
 
         // In carousel mode, tapping a card scrolls it to center, where the
@@ -191,6 +282,23 @@ const CAROUSEL_QUERY = "(max-width: 860px)";
  * neighbors peek in smaller to either side.
  */
 function initCarouselEffect(gridContainer) {
+    // renderWeekRow calls this on every render (including 45s poll-driven
+    // re-renders of #currentWeekGrid, which never gets replaced as a node
+    // — only its children are wiped via innerHTML = ""). Without this
+    // guard, every call would add another set of "scroll"/"resize"/
+    // "change" listeners on top of the ones from previous calls, leaking
+    // unboundedly over hours of polling. So listener registration happens
+    // only once per gridContainer (tracked via a dataset marker), but
+    // `update()` still runs on every call, since assignments/completion
+    // state changes each render and the carousel scale/opacity should
+    // reflect the current DOM.
+    if (gridContainer.dataset.carouselInit) {
+        gridContainer._carouselUpdate();
+        requestAnimationFrame(gridContainer._carouselUpdate);
+        return;
+    }
+    gridContainer.dataset.carouselInit = "true";
+
     const mediaQuery = window.matchMedia(CAROUSEL_QUERY);
     let queued = false;
 
@@ -247,12 +355,14 @@ function initCarouselEffect(gridContainer) {
     window.addEventListener("resize", queueUpdate);
     mediaQuery.addEventListener("change", queueUpdate);
 
+    gridContainer._carouselUpdate = update;
+
     update();
     // re-run once more after layout/fonts settle, since widths may shift
     requestAnimationFrame(update);
 }
 
-function buildDayAssignmentsDiv(dayContainer, choreDay) {
+function buildDayAssignmentsDiv(dayContainer, choreDay, showToggle) {
     const assignmentsList = document.createElement("div");
     assignmentsList.classList.add("day-assignments");
 
@@ -261,6 +371,9 @@ function buildDayAssignmentsDiv(dayContainer, choreDay) {
 
         const row = document.createElement("p");
         row.classList.add("assignment-row");
+        if (assignment.completed) {
+            row.classList.add("completed");
+        }
 
         const icon = document.createElement("span");
         icon.classList.add("assignment-icon");
@@ -277,10 +390,59 @@ function buildDayAssignmentsDiv(dayContainer, choreDay) {
         row.appendChild(icon);
         row.appendChild(shortName);
         row.appendChild(fullName);
+
+        if (showToggle) {
+            const toggle = document.createElement("input");
+            toggle.type = "checkbox";
+            toggle.classList.add("assignment-toggle");
+            toggle.checked = assignment.completed;
+            toggle.setAttribute("aria-label", `Mark ${assignment.chore.name} complete`);
+            toggle.addEventListener("click", (event) => {
+                // don't let the click bubble up to the day card's own click
+                // handler (which toggles "focused"/scrolls the carousel).
+                event.stopPropagation();
+            });
+            toggle.addEventListener("change", () => {
+                handleToggleCompletion(assignment.chore.id, choreDay.date, toggle);
+            });
+            row.appendChild(toggle);
+        }
+
         assignmentsList.appendChild(row);
     });
 
     dayContainer.appendChild(assignmentsList);
+}
+
+/**
+ * Sends a completion toggle to the backend and re-renders the current
+ * week on success. Disables `toggleEl` while the request is in flight so
+ * a rapid double-click can't fire two overlapping toggles. On failure,
+ * reverts the checkbox to the state it had before the click — a native
+ * checkbox flips its own visual state immediately on click, before this
+ * handler runs, so a failed request must undo that rather than leaving
+ * the UI showing a change that never actually happened server-side.
+ */
+function handleToggleCompletion(choreId, date, toggleEl) {
+    toggleEl.disabled = true;
+    fetch(BASE_API_URL + "/completions/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chore_id: choreId, date: date }),
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`HTTP Error! status: ${response.status}`);
+            }
+            return renderCurrentWeek();
+        })
+        .catch((err) => {
+            console.error("Failed to toggle completion:", err);
+            toggleEl.checked = !toggleEl.checked;
+        })
+        .finally(() => {
+            toggleEl.disabled = false;
+        });
 }
 
 function getDay(day) {
