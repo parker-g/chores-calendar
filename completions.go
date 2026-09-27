@@ -70,7 +70,9 @@ func isCompleted(choreID, date string) (bool, error) {
 // The DELETE and INSERT are wrapped in a single transaction to ensure
 // atomicity. Combined with SetMaxOpenConns(1), a transaction holds the
 // one pooled connection for its full duration, ensuring true serialization
-// of the complete delete-then-insert sequence across concurrent calls.
+// of the complete delete-then-insert sequence. A second goroutine's Begin()
+// will block until the first transaction's Commit()/Rollback() releases the
+// connection, making concurrent race conditions impossible.
 func toggleCompletion(choreID, date string) (bool, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -95,12 +97,6 @@ func toggleCompletion(choreID, date string) (bool, error) {
 
 	_, err = tx.Exec(`INSERT INTO completions (chore_id, date) VALUES (?, ?)`, choreID, date)
 	if err != nil {
-		// Even with transaction-based serialization, the row might exist
-		// if another transaction committed it after we started our transaction.
-		// Treat that as "already completed" rather than an error.
-		if already, checkErr := isCompleted(choreID, date); checkErr == nil && already {
-			return true, nil
-		}
 		return false, fmt.Errorf("inserting completion: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
