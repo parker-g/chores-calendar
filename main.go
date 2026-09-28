@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -200,16 +201,28 @@ func loadAllowedOrigins() map[string]bool {
 }
 
 // Adds an 'access-control-allow-origin' header to the response, but only
-// when the client's Origin header matches an entry in allowedOrigins —
-// unlike reflecting any Origin verbatim, this stops arbitrary third-party
-// websites from being granted cross-origin access.
+// when the client's Origin matches an entry in allowedOrigins — unlike
+// reflecting any Origin verbatim, this stops arbitrary third-party websites
+// from being granted cross-origin access.
+//
+// Some browsers omit the Origin header under stricter privacy modes (e.g.
+// private/incognito browsing) even for genuine cross-origin fetches. When
+// that happens, this falls back to deriving the origin from the Referer
+// header instead. Referer is a weaker signal than Origin — it can be
+// stripped by privacy tools/extensions or a strict Referrer-Policy — but is
+// good enough for this app's threat model, and only ever narrows access
+// (checked against the same allowedOrigins set) rather than widening it.
 func handleOriginHeader(c *gin.Context) {
-	originHeaderLen := len(c.Request.Header["Origin"])
-	if originHeaderLen > 0 {
-		origin := c.Request.Header["Origin"][0]
-		if allowedOrigins[origin] {
-			c.Header("Access-Control-Allow-Origin", origin)
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		if referer := c.Request.Header.Get("Referer"); referer != "" {
+			if refURL, err := url.Parse(referer); err == nil && refURL.Scheme != "" && refURL.Host != "" {
+				origin = refURL.Scheme + "://" + refURL.Host
+			}
 		}
+	}
+	if origin != "" && allowedOrigins[origin] {
+		c.Header("Access-Control-Allow-Origin", origin)
 	}
 }
 
