@@ -57,9 +57,21 @@ type Day struct {
 // Days is an array of the 7 days of the current week. TodayIdx is an index of the
 // day of the week at runtime.
 type Week struct {
-	WeekNum  uint8  `json:"week_num"`
-	Days     [7]Day `json:"days"`
-	TodayIdx uint8  `json:"today_idx"`
+	WeekNum uint8 `json:"week_num"`
+	// WeekStart is the Sunday that starts this week, so the frontend can
+	// derive the displayed date range from the same clock that determined
+	// WeekNum instead of computing it independently from the browser's time.
+	// It's a calendar date, not an instant, so it's a plain "YYYY-MM-DD"
+	// string, not a time.Time: GET and POST /week resolve "now" in
+	// different locations (server-local vs. UTC-normalized by gin's
+	// binding), and shipping a zoned instant let the browser's local-time
+	// rendering roll it back a day when the zones didn't line up. (Note:
+	// encoding/json ignores gin's `time_format` tag on output, so a
+	// time.Time field here would silently keep marshaling as full RFC3339
+	// regardless of that tag.)
+	WeekStart string `json:"week_start"`
+	Days      [7]Day    `json:"days"`
+	TodayIdx  uint8     `json:"today_idx"`
 }
 
 // Response is a general structure used to provide
@@ -89,6 +101,7 @@ var housemates = []Person{
 	{Name: "Evie"},
 	{Name: "Garrett"},
 	{Name: "Parker"},
+	{Name: "Kristen"},
 }
 
 // chores are the household tasks tracked day-to-day. Add a new chore by
@@ -120,7 +133,13 @@ func NonISOWeek(t time.Time) (year int, week int) {
 	return
 }
 
-func calculateDays(weekNum int) [7]Day {
+// calculateDays builds one week's assignments. absoluteWeek is the
+// non-wrapped week count (see NonISOWeek) so that daily rotation can be
+// keyed off actual elapsed days (absoluteWeek*7 + dayIdx): that keeps each
+// day's assignee exactly one step past the previous day's, including across
+// week boundaries, instead of resetting/jumping based on a week number
+// that's already been wrapped modulo numHousemates.
+func calculateDays(absoluteWeek int) [7]Day {
 	calcDays := [7]Day{}
 	numHousemates := len(housemates)
 	for dayIdx := 0; dayIdx < 7; dayIdx++ {
@@ -132,10 +151,10 @@ func calculateDays(weekNum int) [7]Day {
 				if dayNum != chore.WeeklyDay {
 					continue
 				}
-				personIdx := (weekNum + chore.offset) % numHousemates
+				personIdx := (absoluteWeek + chore.offset) % numHousemates
 				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
 			default: // Daily
-				personIdx := (weekNum + dayIdx + chore.offset) % numHousemates
+				personIdx := (absoluteWeek*7 + dayIdx + chore.offset) % numHousemates
 				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
 			}
 		}
@@ -147,15 +166,24 @@ func calculateDays(weekNum int) [7]Day {
 	return calcDays
 }
 
+// startOfWeek returns midnight on the Sunday that starts aTime's week.
+func startOfWeek(aTime time.Time) time.Time {
+	y, m, d := aTime.Date()
+	dayStart := time.Date(y, m, d, 0, 0, 0, 0, aTime.Location())
+	return dayStart.AddDate(0, 0, -int(dayStart.Weekday()))
+}
+
 func calculateWeek(aTime *time.Time) Response[Week] {
 	_, week := NonISOWeek(*aTime)
-	calcWeek := (week + weekOffset) % len(housemates)
-	days := calculateDays(calcWeek)
+	absoluteWeek := week + weekOffset
+	calcWeek := absoluteWeek % len(housemates)
+	days := calculateDays(absoluteWeek)
 	nowTime := time.Now().UTC()
 	return Response[Week]{
 		Data: Week{
-			WeekNum: uint8(calcWeek) + 1,
-			Days:    days,
+			WeekNum:   uint8(calcWeek) + 1,
+			WeekStart: startOfWeek(*aTime).Format("2006-01-02"),
+			Days:      days,
 			//use indexes 1-7 instead of 0-6
 			TodayIdx: uint8(aTime.Weekday() + 1),
 		},

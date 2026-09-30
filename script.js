@@ -19,6 +19,12 @@ function getWeekStart(offsetWeeks) {
     return d.GetFirstDayOfWeek();
 }
 
+/** Parses a "YYYY-MM-DD" date-only string into a local midnight Date. */
+function parseLocalDate(dateStr) {
+    const [year, month, day] = dateStr.split("-").map(Number);
+    return new Date(year, month - 1, day);
+}
+
 function shortDate(date) {
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -48,7 +54,14 @@ function fetchWeekData(offsetWeeks) {
                 days: data['days'],
                 // "today" only means something for the current week
                 todayIdx: isCurrent ? parseInt(data['today_idx']) : null,
-                weekStart: getWeekStart(offsetWeeks),
+                // Server is the source of truth for which week is "current",
+                // so derive the displayed date range from its response
+                // instead of recomputing it from the browser's own clock.
+                // Built from y/m/d components (not `new Date(string)`)
+                // because a date-only ISO string is parsed as UTC midnight,
+                // which rolls back a day once formatted in a local zone
+                // behind UTC.
+                weekStart: parseLocalDate(data['week_start']),
             };
         });
 }
