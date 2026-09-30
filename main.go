@@ -1,7 +1,11 @@
 package main
 
 import (
+	"log"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -41,8 +45,9 @@ type Chore struct {
 
 // Assignment pairs a Chore with the Person responsible for it on a given day.
 type Assignment struct {
-	Chore  Chore  `json:"chore"`
-	Person Person `json:"person"`
+	Chore     Chore  `json:"chore"`
+	Person    Person `json:"person"`
+	Completed bool   `json:"completed"`
 }
 
 // Day
@@ -50,6 +55,7 @@ type Assignment struct {
 // Assignments - one entry per chore, naming who's responsible that day
 type Day struct {
 	Num         int          `json:"num"`
+	Date        string       `json:"date"`
 	Assignments []Assignment `json:"assignments"`
 }
 
@@ -70,8 +76,8 @@ type Week struct {
 	// time.Time field here would silently keep marshaling as full RFC3339
 	// regardless of that tag.)
 	WeekStart string `json:"week_start"`
-	Days      [7]Day    `json:"days"`
-	TodayIdx  uint8     `json:"today_idx"`
+	Days      [7]Day `json:"days"`
+	TodayIdx  uint8  `json:"today_idx"`
 }
 
 // Response is a general structure used to provide
@@ -139,27 +145,38 @@ func NonISOWeek(t time.Time) (year int, week int) {
 // day's assignee exactly one step past the previous day's, including across
 // week boundaries, instead of resetting/jumping based on a week number
 // that's already been wrapped modulo numHousemates.
-func calculateDays(absoluteWeek int) [7]Day {
+func calculateDays(absoluteWeek int, weekStart time.Time) [7]Day {
 	calcDays := [7]Day{}
 	numHousemates := len(housemates)
 	for dayIdx := 0; dayIdx < 7; dayIdx++ {
 		dayNum := dayIdx + 1
+		date := weekStart.AddDate(0, 0, dayIdx).Format("2006-01-02")
 		var assignments []Assignment
 		for _, chore := range chores {
+			var personIdx int
 			switch chore.Frequency {
 			case Weekly:
 				if dayNum != chore.WeeklyDay {
 					continue
 				}
-				personIdx := (absoluteWeek + chore.offset) % numHousemates
-				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
+				personIdx = (absoluteWeek + chore.offset) % numHousemates
 			default: // Daily
-				personIdx := (absoluteWeek*7 + dayIdx + chore.offset) % numHousemates
-				assignments = append(assignments, Assignment{Chore: chore, Person: housemates[personIdx]})
+				personIdx = (absoluteWeek*7 + dayIdx + chore.offset) % numHousemates
 			}
+			completed, err := isCompleted(chore.ID, date)
+			if err != nil {
+				log.Printf("completion lookup failed for chore_id=%s date=%s: %v", chore.ID, date, err)
+				completed = false
+			}
+			assignments = append(assignments, Assignment{
+				Chore:     chore,
+				Person:    housemates[personIdx],
+				Completed: completed,
+			})
 		}
 		calcDays[dayIdx] = Day{
 			Num:         dayNum,
+			Date:        date,
 			Assignments: assignments,
 		}
 	}
@@ -177,12 +194,13 @@ func calculateWeek(aTime *time.Time) Response[Week] {
 	_, week := NonISOWeek(*aTime)
 	absoluteWeek := week + weekOffset
 	calcWeek := absoluteWeek % len(housemates)
-	days := calculateDays(absoluteWeek)
+	weekStart := startOfWeek(*aTime)
+	days := calculateDays(absoluteWeek, weekStart)
 	nowTime := time.Now().UTC()
 	return Response[Week]{
 		Data: Week{
 			WeekNum:   uint8(calcWeek) + 1,
-			WeekStart: startOfWeek(*aTime).Format("2006-01-02"),
+			WeekStart: weekStart.Format("2006-01-02"),
 			Days:      days,
 			//use indexes 1-7 instead of 0-6
 			TodayIdx: uint8(aTime.Weekday() + 1),
@@ -191,12 +209,48 @@ func calculateWeek(aTime *time.Time) Response[Week] {
 	}
 }
 
-// Adds 'access-control-allow-origin' header to response
-// if client sends an Origin header
+// allowedOrigins holds the set of origins permitted to make cross-origin
+// requests to this API, loaded from the ALLOWED_ORIGINS env var at startup.
+var allowedOrigins map[string]bool
+
+// loadAllowedOrigins parses a comma-separated list of origins (e.g.
+// "https://chores.example.com,http://localhost:8008") from the
+// ALLOWED_ORIGINS env var into a lookup set.
+func loadAllowedOrigins() map[string]bool {
+	origins := map[string]bool{}
+	raw := os.Getenv("ALLOWED_ORIGINS")
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			origins[o] = true
+		}
+	}
+	return origins
+}
+
+// Adds an 'access-control-allow-origin' header to the response, but only
+// when the client's Origin matches an entry in allowedOrigins — unlike
+// reflecting any Origin verbatim, this stops arbitrary third-party websites
+// from being granted cross-origin access.
+//
+// Some browsers omit the Origin header under stricter privacy modes (e.g.
+// private/incognito browsing) even for genuine cross-origin fetches. When
+// that happens, this falls back to deriving the origin from the Referer
+// header instead. Referer is a weaker signal than Origin — it can be
+// stripped by privacy tools/extensions or a strict Referrer-Policy — but is
+// good enough for this app's threat model, and only ever narrows access
+// (checked against the same allowedOrigins set) rather than widening it.
 func handleOriginHeader(c *gin.Context) {
-	originHeaderLen := len(c.Request.Header["Origin"])
-	if originHeaderLen > 0 {
-		c.Header("Access-Control-Allow-Origin", c.Request.Header["Origin"][0])
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		if referer := c.Request.Header.Get("Referer"); referer != "" {
+			if refURL, err := url.Parse(referer); err == nil && refURL.Scheme != "" && refURL.Host != "" {
+				origin = refURL.Scheme + "://" + refURL.Host
+			}
+		}
+	}
+	if origin != "" && allowedOrigins[origin] {
+		c.Header("Access-Control-Allow-Origin", origin)
 	}
 }
 
@@ -230,10 +284,23 @@ func getWeek(c *gin.Context) {
 }
 
 func main() {
+	allowedOrigins = loadAllowedOrigins()
+	if len(allowedOrigins) == 0 {
+		log.Println("warning: ALLOWED_ORIGINS is unset/empty; no cross-origin requests will be permitted")
+	}
+
+	if err := initCompletionsDB("chores.db"); err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
 	router := gin.Default()
 	router.GET("/week", getCurrentWeek)
 	router.POST("/week", getWeek)
 	router.OPTIONS("/week", handleWeekPreflight)
+
+	router.POST("/completions/toggle", handleToggleCompletion)
+	router.OPTIONS("/completions/toggle", handleCompletionsPreflight)
 
 	router.Run("0.0.0.0:8008")
 }

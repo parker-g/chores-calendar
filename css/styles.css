@@ -169,6 +169,31 @@ main {
     font-weight: 700;
 }
 
+/* Yesterday card (Sunday edge case) */
+
+.yesterday-card {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+}
+
+.yesterday-card-label {
+    margin: 0 0 8px;
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.yesterday-card .day-assignments {
+    opacity: 1;
+    transform: none;
+}
+
 /* Controls */
 
 .controls-bar {
@@ -348,19 +373,55 @@ main {
     line-height: 1;
 }
 
+.assignment-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid var(--text-muted);
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.assignment-toggle:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.assignment-toggle:checked::after {
+    content: "✓";
+    color: white;
+    font-size: 0.75em;
+    font-weight: 700;
+}
+
+.assignment-row.completed .assignment-name-short,
+.assignment-row.completed .assignment-name-full {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
 .assignment-name-full {
     display: none;
 }
 
 .day:hover .assignment-name-full,
 .day.focused .assignment-name-full,
-.day#today .assignment-name-full {
+.day#today .assignment-name-full,
+.yesterday-card .assignment-name-full {
     display: inline;
 }
 
 .day:hover .assignment-name-short,
 .day.focused .assignment-name-short,
-.day#today .assignment-name-short {
+.day#today .assignment-name-short,
+.yesterday-card .assignment-name-short {
     display: none;
 }
 
